@@ -651,6 +651,23 @@ function move19ActorIn(text){
  const matches=turn18Participants().filter(a=>a.name&&lower.includes(a.name.toLocaleLowerCase('it')));
  return matches.length===1?matches[0]:null;
 }
+// V22: controllo degli allontanamenti dalla portata di creature ostili.
+// Rileva la portata standard di 1 casella; portate speciali e reazioni restano al Master.
+function move22Opportunity(actor,path){
+ if(!combatStarted||!path.length)return [];
+ const foes=turn18Participants().filter(other=>other.id!==actor.id&&other.team!==actor.team);
+ const departed=[];
+ let previous=[Number(actor.x),Number(actor.y)];
+ for(const next of path){
+  for(const foe of foes){
+   const before=Math.max(Math.abs(previous[0]-foe.x),Math.abs(previous[1]-foe.y));
+   const after=Math.max(Math.abs(next[0]-foe.x),Math.abs(next[1]-foe.y));
+   if(before<=1&&after>1&&!departed.some(f=>f.id===foe.id))departed.push(foe);
+  }
+  previous=next;
+ }
+ return departed;
+}
 move19El('Analyze').onclick=()=>{
  move19Reset();
  if(playerView){move19Message('⛔ Apri la Vista Master.');return}
@@ -679,7 +696,10 @@ move19El('Analyze').onclick=()=>{
  }
  move19Pending={actorId:actor.id,targetId:target.id,startX:actor.x,startY:actor.y,targetX:target.x,targetY:target.y,steps,path,turn,edition:rulesEdition};
  move19El('Proposal').hidden=false;
- move19Message('👣 '+actor.name+': ('+actor.x+','+actor.y+') → ('+x+','+y+') · '+steps+' caselle / '+steps*5+' piedi.\n⚠ Percorso diretto indicativo: non riconosce muri, ostacoli o terreno difficile. Verifica sulla mappa prima di confermare.');
+ const threats=move22Opportunity(actor,path);
+ const protectedByDisengage=Boolean(budget?.disengage20);
+ const opportunityNote=threats.length?(protectedByDisengage?'\n🛡️ Disimpegno attivo: questo movimento non provoca attacchi di opportunità ordinari da '+threats.map(a=>a.name).join(', ')+'.':'\n⚠️ Possibile attacco di opportunità da '+threats.map(a=>a.name).join(', ')+'. Verifica portata, visibilità, reazione e capacità speciali prima di confermare.'):'\n✓ Nessuna uscita dalla portata standard (1 casella) rilevata.';
+ move19Message('👣 '+actor.name+': ('+actor.x+','+actor.y+') → ('+x+','+y+') · '+steps+' caselle / '+steps*5+' piedi.\n⚠ Percorso diretto indicativo: non riconosce muri, ostacoli o terreno difficile. Verifica sulla mappa prima di confermare.'+opportunityNote);
 };
 move19El('Cancel').onclick=()=>{move19Reset();move19Message('Proposta annullata. Nessuna pedina spostata.')};
 move19El('Confirm').onclick=()=>{
@@ -692,7 +712,10 @@ move19El('Confirm').onclick=()=>{
  const end=p.path[p.path.length-1];actor.x=end[0];actor.y=end[1];
  if(combatStarted)turn18Budget(actor).moved+=p.steps*5;
  addLog('👣 '+actor.name+' si sposta di '+p.steps+' caselle verso '+target.name+' ('+p.steps*5+' piedi).');
- move19Reset();move19Message('✓ Movimento confermato. '+actor.name+' è stato spostato sulla mappa.');refresh();draw();
+ const threats=move22Opportunity({ ...actor,x:p.startX,y:p.startY },p.path);
+ const protectedByDisengage=combatStarted&&turn18Budget(actor).disengage20;
+ if(threats.length){addLog(protectedByDisengage?'🛡️ Disimpegno: '+actor.name+' non provoca attacchi di opportunità ordinari da '+threats.map(a=>a.name).join(', ')+'.':'⚠️ Verificare eventuali attacchi di opportunità da '+threats.map(a=>a.name).join(', ')+'.');}
+ move19Reset();move19Message('✓ Movimento confermato. '+actor.name+' è stato spostato sulla mappa.'+(threats.length?(protectedByDisengage?' 🛡️ Disimpegno: nessun attacco di opportunità ordinario provocato.':' ⚠️ Verifica gli eventuali attacchi di opportunità nel registro.') : ''));refresh();draw();
 };
 
 initActors();refresh();turn18Render();if(innerWidth<580){$('left').classList.add('mobilehide');$('right').classList.add('mobilehide')}new ResizeObserver(()=>fit()).observe(wrap);fit();center();
