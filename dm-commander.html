@@ -508,9 +508,19 @@ ai16('confirm').onclick=()=>{
  const turnCheck=turn18ValidateAttack(a);if(!turnCheck.ok){ai16Message('⛔ '+turnCheck.reason);return}
  if(!document.getElementById('ai17verify').checked){ai16Message('Spunta la verifica del Master per linea di vista, copertura, turno e condizioni.');return}
  if(!confirm('Eseguire il tiro ora? La verifica manuale del Master è stata confermata.'))return;
+ // V21: Schivata persiste fino all'inizio del prossimo turno del bersaglio.
+ // Il Master verifica visibilità e incapacità, condizioni non automatizzate.
+ let attackMode=ai16('mode').value;
+ const dodgeActive=combatStarted&&!!turn18Budget(b).dodge20;
+ let dodgeApplied=false;
+ if(dodgeActive){
+  if(confirm('🛡️ '+b.name+' sta Schivando. L’attaccante vede il bersaglio e il bersaglio non è incapacitato?\n\nOK = applica lo svantaggio di Schivata (un eventuale vantaggio si annulla).\nAnnulla = non applicare lo svantaggio di Schivata.')){
+   dodgeApplied=true;attackMode=attackMode==='adv'?'normal':'dis';
+  }
+ }
  const beforeHp=b.hp,beforeLog=[...combatHistory],beforeBudget=a.turn18?{...a.turn18}:null;
- const r1=rollD20(),r2=ai16('mode').value==='normal'?null:rollD20();
- const die=r2===null?r1:ai16('mode').value==='adv'?Math.max(r1,r2):Math.min(r1,r2);
+ const r1=rollD20(),r2=attackMode==='normal'?null:rollD20();
+ const die=r2===null?r1:attackMode==='adv'?Math.max(r1,r2):Math.min(r1,r2);
  const hit=die===20||(die!==1&&die+bonus>=ac);
  const damage=hit?rollDamage(formula):null;
  if(hit&&!damage){ai16Message('Formula dei danni non valida. Nessuna modifica applicata.');return}
@@ -521,7 +531,7 @@ ai16('confirm').onclick=()=>{
  ai16Undo={targetId:b.id,hp:beforeHp,log:beforeLog,attackerId:a.id,budget:beforeBudget};
  turn18RecordAttack(a);
  const outcome=hit?'COLPITO · '+total+' danni'+(die===20?' · CRITICO':''):'MANCATO';
- const report=a.name+' → '+b.name+' · d20 '+die+(r2===null?'':' ['+r1+', '+r2+']')+' '+(bonus>=0?'+':'')+bonus+' vs CA '+ac+' · '+outcome;
+ const report=a.name+' → '+b.name+(dodgeApplied?' · Schivata applicata':'')+' · d20 '+die+(r2===null?'':' ['+r1+', '+r2+']')+' '+(bonus>=0?'+':'')+bonus+' vs CA '+ac+' · '+outcome;
  addLog('🧠 '+report);ai16('result').textContent=report+(hit?'\nDanni: '+detail+'\nPF '+b.name+': '+beforeHp+' → '+b.hp:'');
  ai16Proposed=false;ai16('proposal').hidden=true;ai16Message('Attacco eseguito. Puoi annullare questa ultima azione IA.');refresh();draw();
 };
